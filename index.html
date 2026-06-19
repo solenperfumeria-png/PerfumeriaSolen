@@ -1065,7 +1065,7 @@ function renderPL(d) {
 function initNV() {
   $('nv-success').style.display = 'none';
   $('nv-form').style.display = 'block';
-  lines = [{ id:++lid, sku:'', cant:1, precio:0 }];
+  lines = [{ id:++lid, sku:'', cant:1, precio:0, costo:0 }];
   // Reset form
   ['nv-cli','nv-tel','nv-ciu','nv-dir','nv-ced','nv-men','nv-obs','nv-ref','nv-flp'].forEach(id=>{ const el=$(id); if(el)el.value=''; });
   $('nv-fecha').value = today();
@@ -1162,13 +1162,14 @@ function tog(id, btn) {
   calcTot();
 }
 
-function addLine() { lines.push({id:++lid,sku:'',cant:1,precio:0}); renderLines(); }
+function addLine() { lines.push({id:++lid,sku:'',cant:1,precio:0,costo:0}); renderLines(); }
 
 function removeLine(id) { lines=lines.filter(l=>l.id!==id); renderLines(); calcTot(); }
 
 function renderLines() {
   $('nv-lines').innerHTML = lines.map(l=>{
     const sub = (l.cant||0)*(l.precio||0);
+    const gan = (l.precio||0)-(l.costo||0);
     const opts = productos.map(p=>`<option value="${p.SKU}" ${String(p.SKU)===String(l.sku)?'selected':''}>${p.SKU} — ${p.Nombre}</option>`).join('');
     return `<div class="pline" data-lid="${l.id}">
       <select class="fi" onchange="onSku(${l.id},this.value)">
@@ -1176,10 +1177,15 @@ function renderLines() {
       </select>
       <div class="pline-r">
         <input class="fi" type="number" min="1" value="${l.cant}" placeholder="Cant" oninput="onLine(${l.id},'cant',this.value)">
-        <input class="fi" type="number" value="${l.precio||''}" placeholder="Precio" oninput="onLine(${l.id},'precio',this.value)">
+        <input class="fi" type="number" value="${l.precio||''}" placeholder="Precio venta" oninput="onLine(${l.id},'precio',this.value)">
         <span class="sub-amt">${fCOP(sub)}</span>
         ${lines.length>1?`<button class="rm-btn" onclick="removeLine(${l.id})">×</button>`:'<span style="width:28px"></span>'}
       </div>
+      ${l.sku?`<div style="margin-top:4px;display:flex;align-items:center;gap:6px">
+        <span style="font-size:10px;color:var(--gm);white-space:nowrap">Costo V.</span>
+        <input class="fi" type="number" value="${l.costo||''}" placeholder="Costo" style="width:100px;padding:5px 8px;font-size:12px" oninput="onLine(${l.id},'costo',this.value)">
+        <span class="gan-amt" style="font-size:11px;color:${gan>=0?'#4CAF7A':'#E87070'};white-space:nowrap">Gan: ${fCOP(gan)}</span>
+      </div>`:''}
     </div>`;
   }).join('');
 }
@@ -1188,15 +1194,19 @@ function onSku(id, sku) {
   const p = productos.find(x=>String(x.SKU)===String(sku));
   const tp = getToggle('tg-precio');
   const line = lines.find(l=>l.id===id);
-  if(line){ line.sku=sku; if(p) line.precio=tp==='Mayorista'?(parseFloat(p.Precio_Mayorista)||0):(parseFloat(p.Precio_Detal)||0); }
+  if(line){ line.sku=sku; if(p){ line.precio=tp==='Mayorista'?(parseFloat(p.Precio_Mayorista)||0):(parseFloat(p.Precio_Detal)||0); line.costo=parseFloat(p.Precio_Mayorista)||0; } }
   renderLines(); calcTot();
 }
 
 function onLine(id, field, val) {
   const line=lines.find(l=>l.id===id); if(line) line[field]=parseFloat(val)||0;
-  // Update only the subtotal badge — no full re-render so the input keeps focus
   const pline = document.querySelector(`.pline[data-lid="${id}"]`);
-  if(pline){ const l=lines.find(x=>x.id===id); const badge=pline.querySelector('.sub-amt'); if(badge) badge.textContent=fCOP((l?.cant||0)*(l?.precio||0)); }
+  if(pline){
+    const l=lines.find(x=>x.id===id);
+    const badge=pline.querySelector('.sub-amt'); if(badge) badge.textContent=fCOP((l?.cant||0)*(l?.precio||0));
+    const gan=pline.querySelector('.gan-amt');
+    if(gan){ const g=(l?.precio||0)-(l?.costo||0); gan.textContent='Gan: '+fCOP(g); gan.style.color=g>=0?'#4CAF7A':'#E87070'; }
+  }
   calcTot();
 }
 
@@ -1236,8 +1246,17 @@ async function submitVenta() {
 
   showLoad(true);
   const r = await api('saveVenta',payload);
+  if(!r.success){ showLoad(false); return toast(r.error||'Error al guardar. Intenta de nuevo.',true); }
+
+  // Auto-compra desde Viiena (dropshipping)
+  const rc = await api('saveCompra',{
+    fecha:payload.fecha,
+    proveedor:'Viiena',
+    referencia_factura_proveedor:r.data.id_factura,
+    productos:validLines.map(l=>({sku:l.sku,cantidad:l.cant,costo_unitario:l.costo||0}))
+  });
   showLoad(false);
-  if(!r.success) return toast(r.error||'Error al guardar. Intenta de nuevo.',true);
+  if(!rc.success) toast('Venta guardada pero la compra automática falló — regístrala manual',true);
 
   lastVenta = { ...payload, ...r.data, productos: validLines.map(l=>({...l, sku:l.sku, cantidad:l.cant, precio_unitario:l.precio})) };
   $('suc-id').textContent = r.data.id_factura + ' · ' + fDate(new Date());
