@@ -147,6 +147,7 @@ select.fi{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 .b-may{background:#1A2030;color:#8090C0}
 .b-reco{background:#0E1820;color:#60B8D0}
 .b-canc{background:#161616;color:#707070;text-decoration:line-through}
+.b-cuotas{background:#1A1830;color:#9080E0}
 
 /* ── VENTA CARDS ───────────────────────────────────────────────── */
 .vc{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;margin-bottom:10px;cursor:pointer;transition:border-color .15s;-webkit-tap-highlight-color:rgba(255,255,255,.05)}
@@ -364,15 +365,20 @@ select.fi{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
         <div class="stat-l">Utilidad neta hoy</div>
         <div class="stat-v big" id="h-un" style="margin-top:4px">—</div>
       </div>
-      <div class="cg">
+      <div class="cg c3">
         <div class="card" style="cursor:pointer" onclick="applyFilter('ventas','ep','Pendiente')">
-          <div class="stat-l">⏳ Pedidos pendientes</div>
-          <div class="stat-v" id="h-pend" style="font-size:28px">—</div>
+          <div class="stat-l">⏳ Pedidos pend.</div>
+          <div class="stat-v" id="h-pend" style="font-size:22px">—</div>
         </div>
         <div class="card" style="cursor:pointer" onclick="gotoDeudores()">
           <div class="stat-l">💰 Deudores</div>
-          <div class="stat-v rd" id="h-deud" style="font-size:28px">—</div>
-          <div style="font-size:11px;color:var(--gm);margin-top:2px" id="h-deud-monto"></div>
+          <div class="stat-v rd" id="h-deud" style="font-size:22px">—</div>
+          <div style="font-size:10px;color:var(--gm);margin-top:2px" id="h-deud-monto"></div>
+        </div>
+        <div class="card" style="cursor:pointer" onclick="gotoDeudores()">
+          <div class="stat-l">🗓️ Cuotas venc.</div>
+          <div class="stat-v rd" id="h-cuotas-venc" style="font-size:22px">—</div>
+          <div style="font-size:10px;color:var(--gm);margin-top:2px" id="h-cuotas-monto"></div>
         </div>
       </div>
 
@@ -473,11 +479,27 @@ select.fi{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
             <button class="to on" data-v="Contraentrega" onclick="tog('tg-pago',this)">Contraentrega</button>
             <button class="to" data-v="Pendiente" onclick="tog('tg-pago',this)">Pend. pago</button>
             <button class="to" data-v="Pagado" onclick="tog('tg-pago',this)">Ya pagado</button>
+            <button class="to" data-v="Cuotas" onclick="tog('tg-pago',this)">Cuotas</button>
           </div>
         </div>
         <div class="fg h" id="nv-ref-row">
           <label class="fl">Ref. / Comprobante de pago</label>
           <input id="nv-ref" class="fi" placeholder="Nequi, Daviplata, transferencia...">
+        </div>
+        <div class="fg h" id="nv-cuotas-row" style="background:rgba(255,255,255,.03);border:1px solid var(--bd);border-radius:11px;padding:11px">
+          <label class="fl">Pago a cuotas</label>
+          <div class="frow" style="margin-bottom:8px">
+            <div class="fg" style="margin-bottom:0">
+              <label class="fl" style="font-size:10px">Número de cuotas</label>
+              <input id="nv-ncuotas" class="fi" type="number" min="2" max="12" value="2" oninput="genCuotas()">
+            </div>
+            <div class="fg" style="margin-bottom:0">
+              <label class="fl" style="font-size:10px">Días entre cuotas</label>
+              <input id="nv-cuotas-freq" class="fi" type="number" min="1" value="30" oninput="genCuotas()">
+            </div>
+          </div>
+          <div id="nv-cuotas-list"></div>
+          <div id="nv-cuotas-warn" style="font-size:11px;text-align:right;padding:2px 4px"></div>
         </div>
         <div class="fg"><label class="fl">Observaciones</label><textarea id="nv-obs" class="fi" placeholder="Instrucciones de entrega, referencias, etc."></textarea></div>
         <div class="fg"><label class="fl">Fecha límite de pago (opcional)</label><input type="date" id="nv-flp" class="fi"></div>
@@ -670,6 +692,7 @@ select.fi{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
     <div class="mh"></div>
     <div class="mt" id="vd-id">Factura</div>
     <div id="vd-body"></div>
+    <div id="vd-cuotas"></div>
     <div id="vd-actions"></div>
     <button class="btn btn-g" style="margin-top:8px" onclick="closeModal('modal-vd')">Cerrar</button>
   </div>
@@ -836,6 +859,7 @@ let productos = [];
 let pin = '';
 let lines = [];
 let lid = 0;
+let cuotasLines = [];
 let lastVenta = null;
 let activePeriod = 'mes';
 let _ventas = [];
@@ -880,7 +904,7 @@ const showLoad = v => $('load-ov').classList.toggle('on', v);
 function openModal(id) { $(id).classList.remove('h'); document.body.style.overflow='hidden'; }
 function closeModal(id) { $(id).classList.add('h'); document.body.style.overflow=''; }
 
-function badgePago(s) { return {Pagado:'b-pago',Contraentrega:'b-cont',Pendiente:'b-pend'}[s]||'b-pend'; }
+function badgePago(s) { return {Pagado:'b-pago',Contraentrega:'b-cont',Pendiente:'b-pend',Cuotas:'b-cuotas'}[s]||'b-pend'; }
 function badgePedido(s) { return {Pendiente:'b-pend',Despachado:'b-desp',Recogido:'b-reco',Entregado:'b-entr',Garantia:'b-gar',Devolucion:'b-dev',Cancelado:'b-canc'}[s]||'b-pend'; }
 
 // ── LOGIN ────────────────────────────────────────────────────────
@@ -993,7 +1017,7 @@ function vEnPeriodo(v,per) {
 }
 
 async function loadHome() {
-  const r = await api('getDashboard',{periodo:activePeriod});
+  const [r, rc] = await Promise.all([api('getDashboard',{periodo:activePeriod}), api('getCuotas',{estado:'Pendiente'})]);
   if(!r.success){ $('pl-box').innerHTML=`<div class="ld" style="color:#E87070">${r.error}</div>`; return; }
   const {hoy, pl, ventas, inventario} = r.data;
   _ventas = ventas; _inv = inventario;
@@ -1012,6 +1036,13 @@ async function loadHome() {
   const deud = _ventas.filter(v=>v.Estado_Pago!=='Pagado'&&v.Estado_Pedido!=='Devolucion'&&v.Estado_Pedido!=='Cancelado');
   $('h-deud').textContent = deud.length;
   $('h-deud-monto').textContent = deud.length ? fCOP(deud.reduce((s,v)=>s+(parseFloat(v.Total_Factura)||0),0)) : '';
+
+  if(rc.success){
+    const hoyMs=Date.now();
+    const venc=rc.data.filter(c=>new Date(c.Fecha_Vencimiento+'T12:00:00').getTime()<hoyMs);
+    $('h-cuotas-venc').textContent = venc.length;
+    $('h-cuotas-monto').textContent = venc.length ? fCOP(venc.reduce((s,c)=>s+(parseFloat(c.Valor)||0),0)) : '';
+  }
 
   renderChart14();
   renderPL(pl);
@@ -1159,6 +1190,8 @@ function initNV() {
   resetTg('tg-dom','Solen'); resetTg('tg-pago','Contraentrega');
   $('nv-ciudad-row').style.display='none'; $('nv-ced-row').classList.add('h');
   $('nv-ref-row').classList.add('h');
+  $('nv-cuotas-row').classList.add('h');
+  cuotasLines = [];
   renderLines();
   calcTot();
 }
@@ -1236,6 +1269,9 @@ function tog(id, btn) {
   if(id==='tg-pago'){
     $('nv-ref-row').classList.toggle('h', btn.dataset.v !== 'Pagado');
     if(btn.dataset.v !== 'Pagado') $('nv-ref').value = '';
+    const esCuotas = btn.dataset.v === 'Cuotas';
+    $('nv-cuotas-row').classList.toggle('h', !esCuotas);
+    if(esCuotas) genCuotas(); else cuotasLines = [];
   }
   calcTot();
 }
@@ -1288,16 +1324,60 @@ function onLine(id, field, val) {
   calcTot();
 }
 
+function calcTotalVenta() {
+  const sub = lines.reduce((s,l)=>s+(l.cant||0)*(l.precio||0),0);
+  const dom = parseFloat($('nv-dom')?.value)||0;
+  const qp = getToggle('tg-dom');
+  return sub + (qp==='Cliente'?dom:0);
+}
+
 function calcTot() {
   const sub = lines.reduce((s,l)=>s+(l.cant||0)*(l.precio||0),0);
   const gan = lines.reduce((s,l)=>s+((l.precio||0)-(l.costo||0))*(l.cant||0),0);
-  const dom = parseFloat($('nv-dom')?.value)||0;
-  const qp = getToggle('tg-dom');
-  const tot = sub + (qp==='Cliente'?dom:0);
+  const tot = calcTotalVenta();
   $('nv-sub-label').textContent = `Subtotal prods: ${fCOP(sub)}`;
   const ganEl=$('nv-gan-label');
   if(ganEl){ ganEl.textContent=`Ganancia: ${fCOP(gan)}`; ganEl.style.color=gan>=0?'#4CAF7A':'#E87070'; }
   $('nv-tot').textContent = fCOP(tot);
+  if(getToggle('tg-pago')==='Cuotas' && cuotasLines.length) checkCuotasSum();
+}
+
+// ── PAGO A CUOTAS ────────────────────────────────────────────────
+// Genera N cuotas espaciadas por "freq" días desde la fecha de venta, con el
+// valor total repartido en partes iguales (la última absorbe el redondeo).
+function genCuotas() {
+  const n = Math.max(2, parseInt($('nv-ncuotas').value)||2);
+  const freq = Math.max(1, parseInt($('nv-cuotas-freq').value)||30);
+  const total = calcTotalVenta();
+  const base = $('nv-fecha').value ? new Date($('nv-fecha').value+'T12:00:00') : new Date();
+  const valorBase = Math.floor(total/n);
+  const resto = total - valorBase*n;
+  cuotasLines = Array.from({length:n},(_,i)=>{
+    const f=new Date(base); f.setDate(f.getDate()+freq*(i+1));
+    return {
+      fecha: f.getFullYear()+'-'+String(f.getMonth()+1).padStart(2,'0')+'-'+String(f.getDate()).padStart(2,'0'),
+      valor: valorBase + (i===n-1?resto:0)
+    };
+  });
+  renderCuotas();
+}
+
+function renderCuotas() {
+  $('nv-cuotas-list').innerHTML = cuotasLines.map((c,i)=>`
+    <div class="frow" style="margin-bottom:6px">
+      <input class="fi" type="date" value="${c.fecha}" oninput="cuotasLines[${i}].fecha=this.value">
+      <input class="fi" type="number" value="${c.valor}" oninput="cuotasLines[${i}].valor=parseFloat(this.value)||0;checkCuotasSum()">
+    </div>`).join('');
+  checkCuotasSum();
+}
+
+function checkCuotasSum() {
+  const sum = cuotasLines.reduce((s,c)=>s+(c.valor||0),0);
+  const total = calcTotalVenta();
+  const dif = total - sum;
+  const w=$('nv-cuotas-warn'); if(!w) return;
+  if(Math.abs(dif)>0.5){ w.textContent=`⚠ Cuotas suman ${fCOP(sum)} — ${dif>0?'falta':'sobra'} ${fCOP(Math.abs(dif))}`; w.style.color='#D4A017'; }
+  else { w.textContent=`✓ Cuotas cuadran con el total: ${fCOP(sum)}`; w.style.color='#4CAF7A'; }
 }
 
 async function submitVenta() {
@@ -1331,6 +1411,12 @@ async function submitVenta() {
     auto_compra_proveedor:'Viiena',
     productos:validLines.map(l=>({sku:l.sku,cantidad:l.cant,precio_unitario:l.precio,costo_unitario:l.costo}))
   };
+
+  if(payload.estado_pago==='Cuotas'){
+    if(!cuotasLines.length) return toast('Genera al menos una cuota',true);
+    if(cuotasLines.some(c=>!c.fecha||!(c.valor>0))) return toast('Todas las cuotas necesitan fecha y valor',true);
+    payload.cuotas = cuotasLines.map(c=>({fecha:c.fecha, valor:c.valor}));
+  }
 
   showLoad(true);
   const r = await api('saveVenta',payload);
@@ -1516,8 +1602,11 @@ function switchVTab(t) {
 async function loadDeudores() {
   $('d-list').innerHTML='<div class="ld"><div class="sp"></div></div>';
   $('d-summary').innerHTML='';
-  const r=await api('getVentas',{});
+  const [r, rc] = await Promise.all([api('getVentas',{}), api('getCuotas',{estado:'Pendiente'})]);
   if(!r.success){ $('d-list').innerHTML=`<div class="ld" style="color:#E87070">${r.error}</div>`; return; }
+  const cuotasPend = rc.success ? rc.data : [];
+  const cuotasPorFactura = {};
+  cuotasPend.forEach(c=>{ (cuotasPorFactura[c.ID_Factura]=cuotasPorFactura[c.ID_Factura]||[]).push(c); });
 
   // Sin pagar, excluyendo devoluciones y canceladas (ya no son deuda)
   const deudores=r.data.filter(v=>v.Estado_Pago!=='Pagado'&&v.Estado_Pedido!=='Devolucion'&&v.Estado_Pedido!=='Cancelado');
@@ -1528,7 +1617,7 @@ async function loadDeudores() {
   }
 
   const totalDeuda=deudores.reduce((s,v)=>s+(parseFloat(v.Total_Factura)||0),0);
-  const porTipo={Contraentrega:0,Pendiente:0};
+  const porTipo={Contraentrega:0,Pendiente:0,Cuotas:0};
   deudores.forEach(v=>{ if(porTipo[v.Estado_Pago]!==undefined) porTipo[v.Estado_Pago]+=(parseFloat(v.Total_Factura)||0); });
 
   $('d-summary').innerHTML=`
@@ -1537,13 +1626,20 @@ async function loadDeudores() {
       <div style="display:flex;gap:10px">
         <div style="text-align:center"><div style="font-size:10px;color:var(--gm)">Contraentrega</div><div style="font-size:14px;font-weight:700">${fCOP(porTipo.Contraentrega)}</div></div>
         <div style="text-align:center"><div style="font-size:10px;color:var(--gm)">Pend. pago</div><div style="font-size:14px;font-weight:700">${fCOP(porTipo.Pendiente)}</div></div>
+        <div style="text-align:center"><div style="font-size:10px;color:var(--gm)">Cuotas</div><div style="font-size:14px;font-weight:700">${fCOP(porTipo.Cuotas)}</div></div>
       </div>
     </div>`;
 
   const hoyMs=Date.now();
   $('d-list').innerHTML=deudores.map(v=>{
     let plazoTxt='', plazoCol='var(--gm)';
-    if(v.Fecha_Limite_Pago){
+    if(v.Estado_Pago==='Cuotas'){
+      const cs=(cuotasPorFactura[v.ID_Factura]||[]).sort((a,b)=>(parseInt(a.Numero)||0)-(parseInt(b.Numero)||0));
+      const vencidas=cs.filter(c=>new Date(c.Fecha_Vencimiento+'T12:00:00').getTime()<hoyMs).length;
+      if(vencidas>0){ plazoTxt=`${vencidas} cuota${vencidas===1?'':'s'} vencida${vencidas===1?'':'s'}`; plazoCol='#E87070'; }
+      else if(cs.length){ plazoTxt=`próx. cuota ${fDate(cs[0].Fecha_Vencimiento)}`; plazoCol='#D4A017'; }
+      else { plazoTxt='cuotas al día'; plazoCol='#4CAF7A'; }
+    } else if(v.Fecha_Limite_Pago){
       const limMs=new Date(v.Fecha_Limite_Pago+'T12:00:00').getTime();
       const diffD=Math.floor((limMs-hoyMs)/86400000);
       if(diffD<0){ plazoTxt=`vencido hace ${Math.abs(diffD)}d`; plazoCol='#E87070'; }
@@ -1616,7 +1712,7 @@ function showVD(id) {
         <select id="vd-new-ep" class="fi">${estados.map(e=>`<option value="${e}">${e}</option>`).join('')}</select>
         <button class="btn btn-g" style="margin-top:8px" onclick="updateEP('${v.ID_Factura}')">Actualizar estado</button>
       </div>
-      ${v.Estado_Pago!=='Pagado'?`<button class="btn btn-p" onclick="marcarPagado('${v.ID_Factura}')">✓ Marcar como pagado</button>`:`<button class="btn btn-g" style="color:#D4A017;border-color:#3a3020" onclick="deshacerPago('${v.ID_Factura}')">↩ Deshacer pago</button>`}
+      ${v.Estado_Pago==='Cuotas'?'':(v.Estado_Pago!=='Pagado'?`<button class="btn btn-p" onclick="marcarPagado('${v.ID_Factura}')">✓ Marcar como pagado</button>`:`<button class="btn btn-g" style="color:#D4A017;border-color:#3a3020" onclick="deshacerPago('${v.ID_Factura}')">↩ Deshacer pago</button>`)}
       <button class="btn btn-g" onclick="openVDEdit('${v.ID_Factura}')">✎ Editar datos</button>
       <button class="btn btn-g" onclick="printFromDetail('${v.ID_Factura}')">🖨 Imprimir rótulo</button>
       <button class="btn btn-g" style="color:#E87070;border-color:#3a1c1c" onclick="anularVenta('${v.ID_Factura}')">✕ Anular pedido (no se vendió)</button>
@@ -1625,6 +1721,44 @@ function showVD(id) {
   }
 
   openModal('modal-vd');
+  const cuotasBox=$('vd-cuotas');
+  if(v.Estado_Pago==='Cuotas') renderCuotasDetalle(v.ID_Factura); else if(cuotasBox) cuotasBox.innerHTML='';
+}
+
+// Lista de cuotas de la factura, con botón para marcar cada una como pagada
+async function renderCuotasDetalle(id) {
+  const box=$('vd-cuotas'); if(!box) return;
+  box.innerHTML='<div class="ld" style="padding:10px"><div class="sp"></div></div>';
+  const r=await api('getCuotas',{id_factura:id});
+  if(!r.success){ box.innerHTML=''; return; }
+  const cuotas=r.data.sort((a,b)=>(parseInt(a.Numero)||0)-(parseInt(b.Numero)||0));
+  if(!cuotas.length){ box.innerHTML='<div style="color:var(--gm);font-size:12px;padding:6px 0">Sin cuotas registradas</div>'; return; }
+  const hoy=new Date();
+  box.innerHTML = `<div class="sh" style="margin-top:14px"><span class="sh-t">Cuotas (${cuotas.filter(c=>c.Estado==='Pagada').length}/${cuotas.length} pagadas)</span></div>` +
+    cuotas.map(c=>{
+      const pagada=c.Estado==='Pagada';
+      const vencida=!pagada && new Date(c.Fecha_Vencimiento+'T12:00:00')<hoy;
+      return `<div class="dr">
+        <span class="dr-k">Cuota ${c.Numero} · ${fDate(c.Fecha_Vencimiento)}${vencida?' <span style="color:#E87070">(vencida)</span>':''}</span>
+        <span class="dr-v">${fCOP(c.Valor)} ${pagada?'<span class="bdg b-pago" style="margin-left:6px">✓ pagada</span>':`<button class="btn btn-p btn-sm" style="margin-top:0;margin-left:8px" onclick="marcarCuotaPagada('${c.ID_Cuota}','${id}')">Marcar</button>`}</span>
+      </div>`;
+    }).join('');
+}
+
+async function marcarCuotaPagada(idCuota, idFactura) {
+  const ok=await customConfirm('Marcar cuota pagada','¿Confirmas que esta cuota ya fue pagada?');
+  if(!ok) return;
+  showLoad(true);
+  const r=await api('marcarCuotaPagada',{id_cuota:idCuota});
+  showLoad(false);
+  if(!r.success) return toast(r.error||'Error',true);
+  toast(r.data.venta_completa?'¡Cuota pagada — factura completa! 🎉':'Cuota marcada como pagada ✓');
+  if(r.data.venta_completa){
+    const v=_ventas.find(x=>x.ID_Factura===idFactura);
+    if(v) v.Estado_Pago='Pagado';
+  }
+  renderCuotasDetalle(idFactura);
+  loadVentas();
 }
 
 
@@ -2195,7 +2329,10 @@ async function submitBanco() {
 async function loadInv() {
   const box=$('inv-list');
   box.innerHTML='<div class="ld"><div class="sp"></div></div>';
-  const r=await api('getInventario',{});
+  // Refresca el catálogo de productos por si se agregó/editó algo directo en la hoja
+  // (si no, el desplegable de +Compra no lo mostraría hasta cerrar y volver a entrar)
+  const [r, rp] = await Promise.all([api('getInventario',{}), api('getProductos')]);
+  if(rp.success) productos = rp.data;
   if(!r.success){ box.innerHTML=`<div class="ld" style="color:#E87070">${r.error}</div>`; return; }
   _inv=r.data;
   const inv=[...r.data].sort((a,b)=>(b.alerta?1:0)-(a.alerta?1:0)||(a.nombre||'').localeCompare(b.nombre||''));
