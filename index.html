@@ -650,14 +650,31 @@ select.fi{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 
     <!-- ── INVENTARIO ── -->
     <section class="sc" id="sc-inv">
-      <div class="sh">
-        <span class="sh-t">Stock actual</span>
-        <div style="display:flex;gap:6px">
-          <button class="btn btn-g btn-sm" onclick="downloadInventarioXLSX()">⬇ Excel</button>
-          <button class="btn btn-p btn-sm" onclick="openCompra()">+ Compra</button>
-        </div>
+      <div class="tabs">
+        <button class="tab on" id="tab-inv-stock" onclick="switchInvTab('stock')">Stock</button>
+        <button class="tab" id="tab-inv-proveedores" onclick="switchInvTab('proveedores')">Proveedores</button>
       </div>
-      <div class="card" id="inv-list"><div class="ld"><div class="sp"></div></div></div>
+
+      <div id="invtab-stock">
+        <div class="sh">
+          <span class="sh-t">Stock actual</span>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-g btn-sm" onclick="downloadInventarioXLSX()">⬇ Excel</button>
+            <button class="btn btn-p btn-sm" onclick="openCompra()">+ Compra</button>
+          </div>
+        </div>
+        <div class="card" id="inv-list"><div class="ld"><div class="sp"></div></div></div>
+      </div>
+
+      <div id="invtab-proveedores" class="h">
+        <div class="periods">
+          <button class="pb" data-p="hoy" onclick="setPeriodProv('hoy',this)">Hoy</button>
+          <button class="pb on" data-p="mes" onclick="setPeriodProv('mes',this)">Este mes</button>
+          <button class="pb" data-p="semana" onclick="setPeriodProv('semana',this)">Esta semana</button>
+          <button class="pb" data-p="todo" onclick="setPeriodProv('todo',this)">Todo</button>
+        </div>
+        <div id="prov-list"><div class="ld"><div class="sp"></div></div></div>
+      </div>
     </section>
 
   </main>
@@ -764,7 +781,7 @@ select.fi{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
     <div class="mt">Registrar compra</div>
     <div class="frow">
       <div class="fg"><label class="fl">Fecha</label><input type="date" id="com-fecha" class="fi"></div>
-      <div class="fg"><label class="fl">Proveedor</label><input id="com-prov" class="fi" placeholder="Nombre proveedor"></div>
+      <div class="fg"><label class="fl">Proveedor</label><select id="com-prov" class="fi"><option value="">Seleccionar proveedor...</option></select></div>
     </div>
     <div id="com-lines"></div>
     <button class="btn btn-g" onclick="addComLine()" style="margin-bottom:10px;font-size:13px">+ Agregar producto</button>
@@ -860,6 +877,7 @@ let pin = '';
 let lines = [];
 let lid = 0;
 let cuotasLines = [];
+let proveedores = [];
 let lastVenta = null;
 let activePeriod = 'mes';
 let _ventas = [];
@@ -948,7 +966,7 @@ function goto(s) {
   if(s==='ventas'){ switchVTab('ventas'); loadVentas(); }
   if(s==='dom') loadDom();
   if(s==='gb') loadGB();
-  if(s==='inv') loadInv();
+  if(s==='inv'){ switchInvTab('stock'); loadInv(); }
   if(s==='nv') initNV();
   // Scroll to top
   document.querySelector('main').scrollTop = 0;
@@ -986,10 +1004,11 @@ async function initApp() {
   $('g-fecha').value = today();
   $('ban-fecha').value = today();
   $('com-fecha').value = today();
-  const [rp, rv] = await Promise.all([api('getProductos'), api('getVentas',{})]);
+  const [rp, rv, rprov] = await Promise.all([api('getProductos'), api('getVentas',{}), api('getProveedores')]);
   if(rp.success){ productos = rp.data; renderLines(); }
   else toast('⚠ No cargaron los productos — toca ↻ arriba para reintentar', true, 6000);
   if(rv.success){ _ventas = rv.data; buildClientes(rv.data); }
+  if(rprov.success) proveedores = rprov.data;
   fillMesSelect();
   goto('home');
 }
@@ -2326,13 +2345,49 @@ async function submitBanco() {
 }
 
 // ── INVENTARIO ───────────────────────────────────────────────────
+let activePeriodProv = 'mes';
+
+function switchInvTab(t) {
+  ['stock','proveedores'].forEach(x=>{
+    $('tab-inv-'+x).classList.toggle('on', x===t);
+    $('invtab-'+x).classList.toggle('h', x!==t);
+  });
+  if(t==='proveedores') loadInformeProveedores(activePeriodProv);
+}
+
+async function setPeriodProv(p, btn) {
+  document.querySelectorAll('#invtab-proveedores .pb').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  activePeriodProv = p;
+  await loadInformeProveedores(p);
+}
+
+async function loadInformeProveedores(periodo) {
+  const box=$('prov-list');
+  box.innerHTML='<div class="ld"><div class="sp"></div></div>';
+  const r=await api('getInformeProveedores',{periodo});
+  if(!r.success){ box.innerHTML=`<div class="ld" style="color:#E87070">${r.error}</div>`; return; }
+  const data=r.data;
+  if(!data.length){ box.innerHTML='<div class="ld">Sin compras registradas en este período</div>'; return; }
+  box.innerHTML = data.map(p=>`
+    <div class="card" style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px">
+        <span style="font-size:15px;font-weight:600">${esc(p.proveedor)}</span>
+        <span style="font-family:var(--ft);font-weight:900;font-size:16px">${fCOP(p.total_gastado)}</span>
+      </div>
+      <div style="font-size:11px;color:var(--gm);margin-bottom:8px">${p.total_compras} compra${p.total_compras===1?'':'s'} · ${p.productos.length} producto${p.productos.length===1?'':'s'} distintos</div>
+      ${p.productos.map(pr=>`<div class="dr" style="padding:6px 0"><span class="dr-k" style="text-transform:none;font-weight:400;color:var(--gw)">${esc(pr.nombre)} ×${pr.cantidad}</span><span class="dr-v">${fCOP(pr.costo_total)}</span></div>`).join('')}
+    </div>`).join('');
+}
+
 async function loadInv() {
   const box=$('inv-list');
   box.innerHTML='<div class="ld"><div class="sp"></div></div>';
-  // Refresca el catálogo de productos por si se agregó/editó algo directo en la hoja
-  // (si no, el desplegable de +Compra no lo mostraría hasta cerrar y volver a entrar)
-  const [r, rp] = await Promise.all([api('getInventario',{}), api('getProductos')]);
+  // Refresca el catálogo de productos y proveedores por si se agregó/editó algo
+  // directo en la hoja (si no, los desplegables de +Compra quedarían desactualizados)
+  const [r, rp, rprov] = await Promise.all([api('getInventario',{}), api('getProductos'), api('getProveedores')]);
   if(rp.success) productos = rp.data;
+  if(rprov.success) proveedores = rprov.data;
   if(!r.success){ box.innerHTML=`<div class="ld" style="color:#E87070">${r.error}</div>`; return; }
   _inv=r.data;
   const inv=[...r.data].sort((a,b)=>(b.alerta?1:0)-(a.alerta?1:0)||(a.nombre||'').localeCompare(b.nombre||''));
@@ -2439,7 +2494,7 @@ let comLid = 0;
 function openCompra() {
   comLines = [{id: ++comLid, sku:'', cant:1, cost:0}];
   $('com-fecha').value = today();
-  $('com-prov').value = '';
+  $('com-prov').innerHTML = '<option value="">Seleccionar proveedor...</option>' + proveedores.map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join('');
   $('com-ref').value = '';
   renderComLines();
   openModal('modal-compra');
@@ -2491,13 +2546,14 @@ function calcComTot() {
 }
 
 async function submitCompra() {
+  if(!$('com-prov').value) return toast('Selecciona el proveedor',true);
   if(!comLines.every(l=>l.sku)) return toast('Selecciona SKU en todos los productos',true);
   if(!comLines.every(l=>l.cant>0)) return toast('Ingresa cantidad válida en todos',true);
   if(!comLines.every(l=>l.cost>0)) return toast('Ingresa costo en todos los productos',true);
   showLoad(true);
   const r=await api('saveCompra',{
     fecha:$('com-fecha').value||today(),
-    proveedor:$('com-prov').value.trim(),
+    proveedor:$('com-prov').value,
     referencia_factura_proveedor:$('com-ref').value.trim(),
     productos:comLines.map(l=>({sku:l.sku, cantidad:l.cant, costo_unitario:l.cost}))
   });
