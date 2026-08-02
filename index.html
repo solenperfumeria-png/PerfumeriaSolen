@@ -354,7 +354,24 @@ select.fi{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 
     <!-- ── INICIO ── -->
     <section class="sc on" id="sc-home">
-      <div class="sh"><span class="sh-t">Resumen del día</span></div>
+      <div class="sh"><span class="sh-t" id="resumen-title">Resumen del día</span></div>
+      <div class="periods" style="margin-bottom:12px">
+        <button class="pb on" data-p="hoy" onclick="setPeriod('hoy',this)">Hoy</button>
+        <button class="pb" data-p="semana" onclick="setPeriod('semana',this)">Esta semana</button>
+        <button class="pb" data-p="mes" onclick="setPeriod('mes',this)">Este mes</button>
+        <button class="pb" data-p="todo" onclick="setPeriod('todo',this)">Todo</button>
+        <select id="pl-mes" class="fi" style="width:auto;flex-shrink:0;padding:6px 30px 6px 12px;font-size:11px;border-radius:20px" onchange="setPeriodMes(this.value)">
+          <option value="">Otro mes…</option>
+        </select>
+        <button class="pb" id="pb-rango" onclick="toggleRango()">📅 Rango</button>
+      </div>
+      <div id="rango-box" class="h" style="background:rgba(255,255,255,.03);border:1px solid var(--bd);border-radius:11px;padding:10px 12px;margin-bottom:12px">
+        <div class="frow" style="margin-bottom:8px">
+          <div class="fg" style="margin-bottom:0"><label class="fl" style="font-size:10px">Desde</label><input type="date" id="rg-desde" class="fi"></div>
+          <div class="fg" style="margin-bottom:0"><label class="fl" style="font-size:10px">Hasta</label><input type="date" id="rg-hasta" class="fi"></div>
+        </div>
+        <button class="btn btn-p btn-sm" style="margin-top:0" onclick="aplicarRango()">Aplicar rango</button>
+      </div>
       <div class="cg">
         <div class="card"><div class="stat-l">Ventas brutas</div><div class="stat-v" id="h-ventas">—</div></div>
         <div class="card"><div class="stat-l">Costo de venta</div><div class="stat-v" id="h-costo">—</div></div>
@@ -362,7 +379,7 @@ select.fi{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
         <div class="card"><div class="stat-l">Total gastos</div><div class="stat-v" id="h-gastos">—</div></div>
       </div>
       <div class="card" style="margin-bottom:14px">
-        <div class="stat-l">Utilidad neta hoy</div>
+        <div class="stat-l" id="un-label">Utilidad neta hoy</div>
         <div class="stat-v big" id="h-un" style="margin-top:4px">—</div>
       </div>
       <div class="cg c3">
@@ -391,16 +408,7 @@ select.fi{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
         <div id="chart14"><div class="ld" style="padding:16px"><div class="sp"></div></div></div>
       </div>
 
-      <div class="sh" style="margin-top:20px"><span class="sh-t">Estado de resultados</span></div>
-      <div class="periods">
-        <button class="pb" data-p="hoy" onclick="setPeriod('hoy',this)">Hoy</button>
-        <button class="pb on" data-p="mes" onclick="setPeriod('mes',this)">Este mes</button>
-        <button class="pb" data-p="semana" onclick="setPeriod('semana',this)">Esta semana</button>
-        <button class="pb" data-p="todo" onclick="setPeriod('todo',this)">Todo</button>
-        <select id="pl-mes" class="fi" style="width:auto;flex-shrink:0;padding:6px 30px 6px 12px;font-size:11px;border-radius:20px" onchange="setPeriodMes(this.value)">
-          <option value="">Otro mes…</option>
-        </select>
-      </div>
+      <div class="sh" style="margin-top:20px"><span class="sh-t">Estado de resultados</span><span style="font-size:11px;color:var(--gm);font-weight:400;margin-left:8px" id="pl-periodo-label"></span></div>
       <div class="cg c3">
         <div class="card"><div class="stat-l">Ticket prom.</div><div class="stat-v" id="k-ticket" style="font-size:15px">—</div></div>
         <div class="card"><div class="stat-l"># Ventas</div><div class="stat-v" id="k-nv" style="font-size:15px">—</div></div>
@@ -709,9 +717,39 @@ select.fi{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
     <div class="mh"></div>
     <div class="mt" id="vd-id">Factura</div>
     <div id="vd-body"></div>
+    <div id="vd-abonos"></div>
     <div id="vd-cuotas"></div>
     <div id="vd-actions"></div>
     <button class="btn btn-g" style="margin-top:8px" onclick="closeModal('modal-vd')">Cerrar</button>
+  </div>
+</div>
+
+<!-- Registrar abono -->
+<div class="ov h" id="modal-abono">
+  <div class="modal">
+    <div class="mh"></div>
+    <div class="mt" id="ab-title">Registrar abono</div>
+    <div class="card" style="margin-bottom:12px;padding:10px 12px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--gm)"><span>Total factura</span><span id="ab-total" style="color:#F4F4F2;font-weight:700"></span></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--gm);margin-top:2px"><span>Abonado hasta hoy</span><span id="ab-pagado" style="color:#4CAF7A;font-weight:700"></span></div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:6px;padding-top:6px;border-top:1px solid var(--bd)"><span style="font-weight:600">Falta</span><span id="ab-restante" style="color:#E87070;font-weight:900"></span></div>
+    </div>
+    <div class="frow">
+      <div class="fg"><label class="fl">Fecha</label><input type="date" id="ab-fecha" class="fi"></div>
+      <div class="fg"><label class="fl">Monto</label><input id="ab-monto" class="fi" type="number" placeholder="0" oninput="calcAbonoRestante()"></div>
+    </div>
+    <div class="fg">
+      <label class="fl">Método de pago</label>
+      <div class="tg" id="tg-ab-metodo">
+        <button class="to on" data-v="Efectivo" onclick="tog('tg-ab-metodo',this)">Efectivo</button>
+        <button class="to" data-v="Transferencia" onclick="tog('tg-ab-metodo',this)">Transferencia</button>
+        <button class="to" data-v="Otro" onclick="tog('tg-ab-metodo',this)">Otro</button>
+      </div>
+    </div>
+    <div class="fg"><label class="fl">Nota (opcional)</label><input id="ab-nota" class="fi" placeholder="Ej: Nequi, Bancolombia, ref. 12345..."></div>
+    <div id="ab-preview" style="font-size:12px;color:var(--gm);margin-bottom:8px"></div>
+    <button class="btn btn-p" onclick="submitAbono()">Registrar abono</button>
+    <button class="btn btn-g" onclick="closeModal('modal-abono');showVD(_abFacId)">Cancelar</button>
   </div>
 </div>
 
@@ -879,7 +917,7 @@ let lid = 0;
 let cuotasLines = [];
 let proveedores = [];
 let lastVenta = null;
-let activePeriod = 'mes';
+let activePeriod = 'hoy';
 let _ventas = [];
 const _selected = new Set();
 let _clientes = [];
@@ -1038,17 +1076,11 @@ function vEnPeriodo(v,per) {
 async function loadHome() {
   const [r, rc] = await Promise.all([api('getDashboard',{periodo:activePeriod}), api('getCuotas',{estado:'Pendiente'})]);
   if(!r.success){ $('pl-box').innerHTML=`<div class="ld" style="color:#E87070">${r.error}</div>`; return; }
-  const {hoy, pl, ventas, inventario} = r.data;
+  const {pl, ventas, inventario} = r.data;
   _ventas = ventas; _inv = inventario;
 
-  // Resumen del día
-  $('h-ventas').textContent = fCOP(hoy.ventas_brutas);
-  $('h-costo').textContent = fCOP(hoy.costo_venta);
-  $('h-ub').textContent = fCOP(hoy.utilidad_bruta);
-  $('h-gastos').textContent = fCOP(hoy.total_gastos);
-  const un = $('h-un');
-  un.textContent = fCOP(hoy.utilidad_neta);
-  un.className = 'stat-v big ' + (hoy.utilidad_neta>=0?'gr':'rd');
+  // Resumen — usa el mismo período que activePeriod
+  renderResumenTop(pl);
 
   // Tarjetas accionables
   $('h-pend').textContent = _ventas.filter(v=>v.Estado_Pedido==='Pendiente').length;
@@ -1140,6 +1172,7 @@ async function setPeriod(p, btn) {
   document.querySelectorAll('.pb').forEach(b=>b.classList.remove('on'));
   btn.classList.add('on');
   const sel=$('pl-mes'); if(sel) sel.value='';
+  $('rango-box').classList.add('h');
   await loadPL(p);
 }
 
@@ -1147,14 +1180,79 @@ async function setPeriod(p, btn) {
 async function setPeriodMes(p) {
   if(!p) return;
   document.querySelectorAll('.pb').forEach(b=>b.classList.remove('on'));
+  $('rango-box').classList.add('h');
   await loadPL(p);
+}
+
+function toggleRango() {
+  const box = $('rango-box');
+  const isHidden = box.classList.contains('h');
+  if(isHidden){
+    // Pre-llenar con el mes actual si están vacíos
+    if(!$('rg-desde').value){
+      const n = new Date();
+      const primero = new Date(n.getFullYear(), n.getMonth(), 1);
+      $('rg-desde').value = primero.toISOString().slice(0,10);
+      $('rg-hasta').value = today();
+    }
+    box.classList.remove('h');
+    document.querySelectorAll('.pb').forEach(b=>b.classList.remove('on'));
+    $('pb-rango').classList.add('on');
+    const sel=$('pl-mes'); if(sel) sel.value='';
+  } else {
+    box.classList.add('h');
+    $('pb-rango').classList.remove('on');
+  }
+}
+
+async function aplicarRango() {
+  const d = $('rg-desde').value;
+  const h = $('rg-hasta').value;
+  if(!d || !h) return toast('Selecciona ambas fechas',true);
+  if(d > h) return toast('La fecha "Desde" debe ser menor o igual a "Hasta"',true);
+  document.querySelectorAll('.pb').forEach(b=>b.classList.remove('on'));
+  $('pb-rango').classList.add('on');
+  const sel=$('pl-mes'); if(sel) sel.value='';
+  await loadPL(`${d}:${h}`);
+}
+
+// Etiqueta legible del período (para títulos)
+function periodLabel(p) {
+  if(!p || p==='hoy') return 'hoy';
+  if(p==='semana') return 'esta semana';
+  if(p==='mes') return 'este mes';
+  if(p==='todo') return 'todo el histórico';
+  const rng = String(p).match(/^(\d{4}-\d{2}-\d{2}):(\d{4}-\d{2}-\d{2})$/);
+  if(rng) return `${fDate(rng[1])} → ${fDate(rng[2])}`;
+  const m = String(p).match(/^(\d{4})-(\d{2})$/);
+  if(m){
+    const MESES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    return `${MESES[+m[2]-1]} ${m[1]}`;
+  }
+  return p;
+}
+
+// Actualiza los 4 cards + Utilidad neta del bloque superior
+function renderResumenTop(d) {
+  $('h-ventas').textContent = fCOP(d.ventas_brutas);
+  $('h-costo').textContent  = fCOP(d.costo_venta);
+  $('h-ub').textContent     = fCOP(d.utilidad_bruta);
+  $('h-gastos').textContent = fCOP(d.total_gastos);
+  const un = $('h-un');
+  un.textContent = fCOP(d.utilidad_neta);
+  un.className = 'stat-v big ' + (d.utilidad_neta>=0?'gr':'rd');
+  const lbl = periodLabel(activePeriod);
+  $('resumen-title').textContent = activePeriod==='hoy' ? 'Resumen del día' : `Resumen — ${lbl}`;
+  $('un-label').textContent = activePeriod==='hoy' ? 'Utilidad neta hoy' : `Utilidad neta (${lbl})`;
+  $('pl-periodo-label').textContent = lbl;
 }
 
 async function loadPL(p) {
   activePeriod = p;
-  $('pl-box').innerHTML = '<div class="ld"><div class="sp"></div><span>Cargando P&L...</span></div>';
+  $('pl-box').innerHTML = '<div class="ld"><div class="sp"></div><span>Cargando...</span></div>';
   const r = await api('getResumen',{periodo:p});
   if(!r.success){ $('pl-box').innerHTML=`<div class="ld" style="color:#E87070">${r.error}</div>`; return; }
+  renderResumenTop(r.data);
   renderPL(r.data);
   renderKPIs(r.data);
   renderTopProds();
@@ -1303,11 +1401,14 @@ function renderLines() {
   $('nv-lines').innerHTML = lines.map(l=>{
     const sub = (l.cant||0)*(l.precio||0);
     const gan = ((l.precio||0)-(l.costo||0))*(l.cant||0);
-    const opts = productos.map(p=>`<option value="${p.SKU}" ${String(p.SKU)===String(l.sku)?'selected':''}>${p.SKU} — ${p.Nombre}</option>`).join('');
+    const p = l.sku ? productos.find(x=>String(x.SKU)===String(l.sku)) : null;
+    const nombreSel = p ? `${p.Nombre} — ${p.SKU}` : '';
     return `<div class="pline" data-lid="${l.id}">
-      <select class="fi" onchange="onSku(${l.id},this.value)">
-        <option value="">Seleccionar producto...</option>${opts}
-      </select>
+      <div style="position:relative">
+        <input class="fi prod-search" data-lid="${l.id}" value="${esc(nombreSel)}" placeholder="🔍 Buscar producto por nombre o SKU..." autocomplete="off"
+               oninput="onProdSearch(${l.id},this.value)" onfocus="onProdSearch(${l.id},this.value)" onblur="setTimeout(()=>hideProdDrop(${l.id}),200)">
+        <div id="prod-drop-${l.id}" class="cli-drop h"></div>
+      </div>
       <div class="pline-r">
         <input class="fi" type="number" min="1" value="${l.cant}" placeholder="Cant" oninput="onLine(${l.id},'cant',this.value)">
         <input class="fi" type="number" value="${l.precio||''}" placeholder="Precio venta" oninput="onLine(${l.id},'precio',this.value)">
@@ -1321,6 +1422,43 @@ function renderLines() {
       </div>`:''}
     </div>`;
   }).join('');
+}
+
+function onProdSearch(id, q) {
+  const drop = $('prod-drop-'+id); if(!drop) return;
+  const line = lines.find(l=>l.id===id);
+  const query = String(q||'').trim().toLowerCase();
+  // Si el input coincide exactamente con el producto seleccionado, no mostrar dropdown
+  if(line && line.sku){
+    const p = productos.find(x=>String(x.SKU)===String(line.sku));
+    if(p && q === `${p.Nombre} — ${p.SKU}`) { drop.classList.add('h'); return; }
+  }
+  // Filtrar: si query vacía, mostrar todos (primeros 15); si tiene texto, filtrar por nombre/marca/SKU
+  const matches = productos.filter(p=>{
+    if(!query) return true;
+    return String(p.Nombre||'').toLowerCase().includes(query)
+        || String(p.SKU||'').toLowerCase().includes(query)
+        || String(p.Marca||'').toLowerCase().includes(query);
+  }).slice(0, 15);
+  if(!matches.length){ drop.innerHTML='<div class="cli-it" style="color:var(--gm)">Sin resultados</div>'; drop.classList.remove('h'); return; }
+  drop.innerHTML = matches.map(p=>{
+    const stock = _inv.find(i=>String(i.sku)===String(p.SKU));
+    const stockTxt = stock ? `stock: ${stock.stock_actual}` : '';
+    return `<div class="cli-it" onclick="selectProd(${id},'${String(p.SKU).replace(/'/g,"\\'")}')">
+      <div class="cli-nm">${esc(p.Nombre)}</div>
+      <div class="cli-inf">${esc(p.SKU)}${p.Marca?' · '+esc(p.Marca):''}${stockTxt?' · '+stockTxt:''} · ${fCOP(p.Precio_Detal||0)}</div>
+    </div>`;
+  }).join('');
+  drop.classList.remove('h');
+}
+
+function hideProdDrop(id) {
+  const drop = $('prod-drop-'+id);
+  if(drop) drop.classList.add('h');
+}
+
+function selectProd(id, sku) {
+  onSku(id, sku);
 }
 
 function onSku(id, sku) {
@@ -1732,6 +1870,7 @@ function showVD(id) {
         <button class="btn btn-g" style="margin-top:8px" onclick="updateEP('${v.ID_Factura}')">Actualizar estado</button>
       </div>
       ${v.Estado_Pago==='Cuotas'?'':(v.Estado_Pago!=='Pagado'?`<button class="btn btn-p" onclick="marcarPagado('${v.ID_Factura}')">✓ Marcar como pagado</button>`:`<button class="btn btn-g" style="color:#D4A017;border-color:#3a3020" onclick="deshacerPago('${v.ID_Factura}')">↩ Deshacer pago</button>`)}
+      ${v.Estado_Pago==='Pagado'||v.Estado_Pago==='Cuotas'?'':`<button class="btn btn-g" style="color:#4CAF7A;border-color:#1c3a2a" onclick="openAbono('${v.ID_Factura}')">💵 Registrar abono</button>`}
       <button class="btn btn-g" onclick="openVDEdit('${v.ID_Factura}')">✎ Editar datos</button>
       <button class="btn btn-g" onclick="printFromDetail('${v.ID_Factura}')">🖨 Imprimir rótulo</button>
       <button class="btn btn-g" style="color:#E87070;border-color:#3a1c1c" onclick="anularVenta('${v.ID_Factura}')">✕ Anular pedido (no se vendió)</button>
@@ -1742,6 +1881,119 @@ function showVD(id) {
   openModal('modal-vd');
   const cuotasBox=$('vd-cuotas');
   if(v.Estado_Pago==='Cuotas') renderCuotasDetalle(v.ID_Factura); else if(cuotasBox) cuotasBox.innerHTML='';
+  const abBox=$('vd-abonos');
+  if(abBox) abBox.innerHTML='';
+  if(v.Estado_Pago!=='Pagado' && v.Estado_Pago!=='Cuotas' && v.Estado_Pedido!=='Cancelado' && v.Estado_Pedido!=='Devolucion'){
+    renderAbonosDetalle(v.ID_Factura);
+  }
+}
+
+// Suma abonos registrados en BANCO cuya ID_Factura_Referencia contiene esta factura
+async function fetchAbonosFactura(idFactura) {
+  const r = await api('getBanco',{tipo:'Entrada'});
+  if(!r.success) return [];
+  return r.data.filter(b => {
+    const refs = String(b.ID_Factura_Referencia||'').split(/[,\s]+/).map(x=>x.trim());
+    return refs.indexOf(idFactura) !== -1;
+  });
+}
+
+async function renderAbonosDetalle(idFactura) {
+  const box = $('vd-abonos'); if(!box) return;
+  box.innerHTML = '<div style="padding:8px 0;font-size:11px;color:var(--gm)">Cargando abonos...</div>';
+  const abonos = await fetchAbonosFactura(idFactura);
+  const v = _ventas.find(x=>x.ID_Factura===idFactura);
+  const total = parseFloat(v?.Total_Factura)||0;
+  const sumado = abonos.reduce((s,b)=>s+(parseFloat(b.Valor)||0),0);
+  const restante = Math.max(0, total - sumado);
+  if(!abonos.length){ box.innerHTML=''; return; }
+  box.innerHTML = `
+    <div class="sh" style="margin-top:14px"><span class="sh-t">Abonos registrados</span></div>
+    ${abonos.map(a=>`<div class="dr"><span class="dr-k">${a.ID_Movimiento} · ${fDate(a.Fecha)}</span><span class="dr-v" style="color:#4CAF7A;font-weight:700">${fCOP(a.Valor)}</span></div>`).join('')}
+    <div class="dr" style="margin-top:6px;padding-top:6px;border-top:1px solid var(--bd)"><span class="dr-k" style="font-weight:700">Total abonado</span><span class="dr-v" style="color:#4CAF7A;font-weight:900">${fCOP(sumado)}</span></div>
+    <div class="dr"><span class="dr-k" style="font-weight:700">Falta</span><span class="dr-v" style="color:${restante>0?'#E87070':'#4CAF7A'};font-weight:900">${fCOP(restante)}</span></div>
+  `;
+}
+
+// ── ABONOS ───────────────────────────────────────────────────────
+let _abFacId = null;
+
+async function openAbono(idFactura) {
+  const v=_ventas.find(x=>x.ID_Factura===idFactura); if(!v) return;
+  _abFacId = idFactura;
+  const total = parseFloat(v.Total_Factura)||0;
+  $('ab-title').textContent = 'Registrar abono — '+idFactura;
+  $('ab-total').textContent = fCOP(total);
+  $('ab-pagado').textContent = fCOP(0);
+  $('ab-restante').textContent = fCOP(total);
+  $('ab-fecha').value = today();
+  $('ab-monto').value = '';
+  $('ab-nota').value = '';
+  $('ab-preview').textContent = '';
+  resetTg('tg-ab-metodo','Efectivo');
+  closeModal('modal-vd');
+  openModal('modal-abono');
+  // Cargar abonos previos y actualizar
+  const abonos = await fetchAbonosFactura(idFactura);
+  const sumado = abonos.reduce((s,b)=>s+(parseFloat(b.Valor)||0),0);
+  const restante = Math.max(0, total - sumado);
+  $('ab-pagado').textContent = fCOP(sumado);
+  $('ab-restante').textContent = fCOP(restante);
+  if(restante>0 && !$('ab-monto').value){ $('ab-monto').value = restante; calcAbonoRestante(); }
+}
+
+function calcAbonoRestante() {
+  const v=_ventas.find(x=>x.ID_Factura===_abFacId); if(!v) return;
+  const total=parseFloat(v.Total_Factura)||0;
+  const pagadoTxt=$('ab-pagado').textContent.replace(/[^\d-]/g,'');
+  const pagado=parseFloat(pagadoTxt)||0;
+  const nuevo=parseFloat($('ab-monto').value)||0;
+  const nuevoRest=Math.max(0, total-pagado-nuevo);
+  const prev=$('ab-preview');
+  if(nuevo<=0){ prev.textContent=''; return; }
+  if(pagado+nuevo>=total) prev.innerHTML=`<span style="color:#4CAF7A;font-weight:700">✓ Con este abono la factura queda PAGADA.</span>`;
+  else prev.innerHTML=`Después de este abono faltarían: <b style="color:#E87070">${fCOP(nuevoRest)}</b>`;
+}
+
+async function submitAbono() {
+  const v=_ventas.find(x=>x.ID_Factura===_abFacId); if(!v) return;
+  const monto=parseFloat($('ab-monto').value)||0;
+  if(monto<=0) return toast('Ingresa un monto válido',true);
+  const total=parseFloat(v.Total_Factura)||0;
+  const fecha=$('ab-fecha').value || today();
+  const metodo=getToggle('tg-ab-metodo')||'Efectivo';
+  const nota=$('ab-nota').value.trim();
+  const descripcion = `Abono ${v.ID_Factura}${v.Cliente?' — '+v.Cliente:''} — ${metodo}${nota?' ('+nota+')':''}`;
+
+  showLoad(true);
+  const r = await api('saveBanco', {
+    tipo:'Entrada', valor:monto, fecha:fecha,
+    descripcion:descripcion, ids_factura:[v.ID_Factura],
+    es_abono:true, estado:'Verificado'
+  });
+  showLoad(false);
+  if(!r.success) return toast(r.error||'Error al registrar abono',true);
+
+  // Verificar si con este abono queda cubierta la factura
+  const abonos = await fetchAbonosFactura(v.ID_Factura);
+  const sumado = abonos.reduce((s,b)=>s+(parseFloat(b.Valor)||0),0);
+  closeModal('modal-abono');
+
+  if(sumado >= total){
+    const ok = await customConfirm('¡Factura cubierta!',
+      `Los abonos suman ${fCOP(sumado)} (total ${fCOP(total)}). ¿Marcar la factura como Pagada?`);
+    if(ok){
+      showLoad(true);
+      const ru = await api('updateVenta',{id_factura:v.ID_Factura,updates:{Estado_Pago:'Pagado'}});
+      showLoad(false);
+      toast(ru.success?'Abono registrado y factura marcada como Pagada ✓':'Abono registrado, error al marcar Pagado',!ru.success);
+    } else {
+      toast('Abono registrado ✓ (factura queda pendiente)');
+    }
+  } else {
+    toast(`Abono registrado ✓ — falta ${fCOP(total-sumado)}`);
+  }
+  loadVentas();
 }
 
 // Lista de cuotas de la factura, con botón para marcar cada una como pagada
@@ -2513,12 +2765,15 @@ function removeComLine(id) {
 
 function renderComLines() {
   $('com-lines').innerHTML = comLines.map(l=>{
-    const opts = productos.map(p=>`<option value="${p.SKU}" ${String(p.SKU)===String(l.sku)?'selected':''}>${p.SKU} — ${p.Nombre}</option>`).join('');
+    const p = l.sku ? productos.find(x=>String(x.SKU)===String(l.sku)) : null;
+    const nombreSel = p ? `${p.Nombre} — ${p.SKU}` : '';
     const sub = (l.cant||0)*(l.cost||0);
     return `<div style="border:1px solid var(--bd);border-radius:8px;padding:10px;margin-bottom:8px">
-      <select class="fi" style="margin-bottom:6px" onchange="onComSkuL(${l.id},this.value)">
-        <option value="">Seleccionar producto...</option>${opts}
-      </select>
+      <div style="position:relative;margin-bottom:6px">
+        <input class="fi" data-clid="${l.id}" value="${esc(nombreSel)}" placeholder="🔍 Buscar producto por nombre o SKU..." autocomplete="off"
+               oninput="onComProdSearch(${l.id},this.value)" onfocus="onComProdSearch(${l.id},this.value)" onblur="setTimeout(()=>hideComProdDrop(${l.id}),200)">
+        <div id="com-prod-drop-${l.id}" class="cli-drop h"></div>
+      </div>
       <div class="pline-r">
         <input class="fi" type="number" min="1" value="${l.cant}" placeholder="Cant" oninput="onComLineF(${l.id},'cant',this.value)">
         <input class="fi" type="number" value="${l.cost||''}" placeholder="Costo unit." oninput="onComLineF(${l.id},'cost',this.value)">
@@ -2530,8 +2785,47 @@ function renderComLines() {
   calcComTot();
 }
 
+function onComProdSearch(id, q) {
+  const drop = $('com-prod-drop-'+id); if(!drop) return;
+  const line = comLines.find(l=>l.id===id);
+  const query = String(q||'').trim().toLowerCase();
+  if(line && line.sku){
+    const p = productos.find(x=>String(x.SKU)===String(line.sku));
+    if(p && q === `${p.Nombre} — ${p.SKU}`) { drop.classList.add('h'); return; }
+  }
+  const matches = productos.filter(p=>{
+    if(!query) return true;
+    return String(p.Nombre||'').toLowerCase().includes(query)
+        || String(p.SKU||'').toLowerCase().includes(query)
+        || String(p.Marca||'').toLowerCase().includes(query);
+  }).slice(0, 15);
+  if(!matches.length){ drop.innerHTML='<div class="cli-it" style="color:var(--gm)">Sin resultados</div>'; drop.classList.remove('h'); return; }
+  drop.innerHTML = matches.map(p=>`<div class="cli-it" onclick="selectComProd(${id},'${String(p.SKU).replace(/'/g,"\\'")}')">
+    <div class="cli-nm">${esc(p.Nombre)}</div>
+    <div class="cli-inf">${esc(p.SKU)}${p.Marca?' · '+esc(p.Marca):''} · costo prov: ${fCOP(p.Precio_Mayorista||0)}</div>
+  </div>`).join('');
+  drop.classList.remove('h');
+}
+
+function hideComProdDrop(id) {
+  const drop = $('com-prod-drop-'+id);
+  if(drop) drop.classList.add('h');
+}
+
+function selectComProd(id, sku) {
+  onComSkuL(id, sku);
+}
+
 function onComSkuL(id, sku) {
-  const l=comLines.find(x=>x.id===id); if(l) l.sku=sku;
+  const l=comLines.find(x=>x.id===id);
+  if(l){
+    l.sku=sku;
+    // Pre-cargar costo del producto (si no se ha ingresado uno)
+    if(!l.cost){
+      const p = productos.find(x=>String(x.SKU)===String(sku));
+      if(p) l.cost = parseFloat(p.Precio_Mayorista) || 0;
+    }
+  }
   renderComLines();
 }
 
